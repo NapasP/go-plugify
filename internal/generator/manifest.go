@@ -1,8 +1,11 @@
 package generator
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/untrustedmodders/go-plugify/manifest"
 )
@@ -113,7 +116,7 @@ func PopulateManifest(m *manifest.Manifest, funcs []ExportedFunction) error {
 		}
 	}
 
-	if err := tables.err(); err != nil {
+	if err := errors.Join(tables.err(), duplicateExports(methods)); err != nil {
 		return err
 	}
 
@@ -123,6 +126,35 @@ func PopulateManifest(m *manifest.Manifest, funcs []ExportedFunction) error {
 	m.Prototypes = tables.sortedPrototypes()
 	m.Enums = tables.sortedEnums()
 	return nil
+}
+
+// duplicateExports reports an export name or generated symbol used more than
+// once. Plugify refuses such a manifest at load, and cgo refuses a repeated
+// symbol at link time, but neither says which Go declaration caused it; naming
+// them here puts the problem next to the source that wrote it.
+func duplicateExports(methods []manifest.Method) error {
+	var problems []string
+	seenName := make(map[string]bool, len(methods))
+	seenSymbol := make(map[string]bool, len(methods))
+
+	for _, m := range methods {
+		if seenName[m.Name] {
+			problems = append(problems, fmt.Sprintf("method %q is exported more than once", m.Name))
+		}
+		seenName[m.Name] = true
+
+		if seenSymbol[m.FuncName] {
+			problems = append(problems, fmt.Sprintf("symbol %q is generated more than once", m.FuncName))
+		}
+		seenSymbol[m.FuncName] = true
+	}
+
+	if len(problems) == 0 {
+		return nil
+	}
+
+	sort.Strings(problems)
+	return errors.New(strings.Join(slices.Compact(problems), "; "))
 }
 
 func (t *typeTables) convertParams(params []ParamInfo) []manifest.Property {
