@@ -200,6 +200,16 @@ func (g *Package) mapTypeInfo(v *types.Var, bt types.Type, typeName string, info
 
 	// Handle function types
 	case *types.Signature:
+		if typeName == "" {
+			return TypeInfo{}, mappedTypeInvalid, g.newParamError(
+				v.Pos(), "", 0, v.Name(), t.String(),
+				fmt.Errorf(
+					"anonymous func type %s cannot be exported; declare a named type for it, "+
+						"for example `type MyCallback %s`, and use that instead",
+					t.String(), t.String()),
+			)
+		}
+
 		params, err := g.extractParams(t, info, pkg)
 		if err != nil {
 			return TypeInfo{}, mappedTypeInvalid, err.Add("failed to map func param")
@@ -212,9 +222,6 @@ func (g *Package) mapTypeInfo(v *types.Var, bt types.Type, typeName string, info
 		// Get type-level documentation for delegate with doxygen parsing
 		var delegateDoc DocComment
 		if pkg != nil {
-			if typeName == "" {
-				typeName = t.String()
-			}
 			delegateDoc = findTypeDelegateDoc(pkg, typeName)
 		}
 
@@ -230,15 +237,15 @@ func (g *Package) mapTypeInfo(v *types.Var, bt types.Type, typeName string, info
 			retType.Description = delegateDoc.ReturnDesc
 		}
 
-		funcName := "callback"
-		// Try to get function type name from context if available
+		// The declared type name; the Named and Alias cases below set it again
+		// from their own name, which is the same value.
 		return TypeInfo{
 			TypeString: "function",
 			GoBaseType: "any",
 			IsRef:      isRef,
 			IsFunc:     true,
 			FuncSig: &FuncSignature{
-				Name:        funcName,
+				Name:        typeName,
 				Params:      params,
 				Return:      retType,
 				Description: delegateDoc.Description,
@@ -299,8 +306,13 @@ func (g *Package) mapTypeInfo(v *types.Var, bt types.Type, typeName string, info
 				typeInfo.Description = findTypeComment(pkg, typeInfo.EnumTypeName)
 			}
 
-			typeInfo.IsEnum = true
 			typeInfo.EnumValues = findEnumValues(pkg, t.Obj())
+
+			if len(typeInfo.EnumValues) > 0 {
+				typeInfo.IsEnum = true
+			} else {
+				typeInfo.IsAlias = true
+			}
 		}
 		typeInfo.packageImport = g.prepareImport(obj)
 

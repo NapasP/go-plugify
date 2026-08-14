@@ -15,6 +15,8 @@ type Manifest struct {
 	Entry        string       `json:"entry"`
 	Language     string       `json:"language"`
 	Methods      []Method     `json:"methods"`
+	Prototypes   []*Method    `json:"prototypes,omitempty"`
+	Enums        []*Enum      `json:"enums,omitempty"`
 }
 
 // Method represents a single exported method
@@ -27,8 +29,8 @@ type Method struct {
 	Group       string     `json:"group,omitempty"`
 }
 
-// EnumValue represents a single enumeration value
-type EnumValue struct {
+// Value represents a single enumeration value
+type Value struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Value       int64  `json:"value"`
@@ -36,9 +38,9 @@ type EnumValue struct {
 
 // Enum represents an enumeration
 type Enum struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description,omitempty"`
-	Values      []EnumValue `json:"values"`
+	Name        string  `json:"name"`
+	Description string  `json:"description,omitempty"`
+	Values      []Value `json:"values"`
 }
 
 // Alias represents an alias definition
@@ -49,13 +51,13 @@ type Alias struct {
 
 // Property represents a parameter type
 type Property struct {
-	Type        string  `json:"type"`
-	Name        string  `json:"name,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Ref         bool    `json:"ref,omitempty"`
-	Prototype   *Method `json:"prototype,omitempty"`
-	Enum        *Enum   `json:"enum,omitempty"`
-	Alias       *Alias  `json:"alias,omitempty"`
+	Type        string `json:"type"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Ref         bool   `json:"ref,omitempty"`
+	Prototype   string `json:"prototype,omitempty"`
+	Enum        string `json:"enum,omitempty"`
+	Alias       *Alias `json:"alias,omitempty"`
 }
 
 // Dependency represents a plugin's dependency
