@@ -7,28 +7,28 @@ import (
 	"github.com/untrustedmodders/go-plugify/manifest"
 )
 
-// TypeTables collects the prototypes and enums encountered while converting
+// typeTables collects the prototypes and enums encountered while converting
 // exported functions. Each is written to the manifest once and named from every
 // use site, so a callback taken by twenty functions is described once.
 //
 // Two Go types in different packages can share a short name, and a name is what
 // a reference resolves on, so a clash is recorded rather than silently letting
 // one definition stand in for the other.
-type TypeTables struct {
+type typeTables struct {
 	prototypes map[string]*manifest.Method
 	enums      map[string]*manifest.Enum
 	clashes    []string
 }
 
-func newTypeTables() *TypeTables {
-	return &TypeTables{
+func newTypeTables() *typeTables {
+	return &typeTables{
 		prototypes: map[string]*manifest.Method{},
 		enums:      map[string]*manifest.Enum{},
 	}
 }
 
 // addPrototype files a callback signature and returns the name to refer to it by.
-func (t *TypeTables) addPrototype(prototype *manifest.Method) string {
+func (t *typeTables) addPrototype(prototype *manifest.Method) string {
 	existing, found := t.prototypes[prototype.Name]
 	if !found {
 		t.prototypes[prototype.Name] = prototype
@@ -41,7 +41,7 @@ func (t *TypeTables) addPrototype(prototype *manifest.Method) string {
 }
 
 // addEnum files an enumeration and returns the name to refer to it by.
-func (t *TypeTables) addEnum(enum *manifest.Enum) string {
+func (t *typeTables) addEnum(enum *manifest.Enum) string {
 	existing, found := t.enums[enum.Name]
 	if !found {
 		t.enums[enum.Name] = enum
@@ -53,7 +53,7 @@ func (t *TypeTables) addEnum(enum *manifest.Enum) string {
 	return enum.Name
 }
 
-func (t *TypeTables) clash(kind, name string) {
+func (t *typeTables) clash(kind, name string) {
 	clash := fmt.Sprintf("%s %s", kind, name)
 	for _, seen := range t.clashes {
 		if seen == clash {
@@ -63,8 +63,8 @@ func (t *TypeTables) clash(kind, name string) {
 	t.clashes = append(t.clashes, clash)
 }
 
-// Err reports the name clashes found during conversion, if any.
-func (t *TypeTables) Err() error {
+// err reports the name clashes found during conversion, if any.
+func (t *typeTables) err() error {
 	if len(t.clashes) == 0 {
 		return nil
 	}
@@ -73,7 +73,7 @@ func (t *TypeTables) Err() error {
 		t.clashes)
 }
 
-func (t *TypeTables) Prototypes() []*manifest.Method {
+func (t *typeTables) sortedPrototypes() []*manifest.Method {
 	if len(t.prototypes) == 0 {
 		return nil
 	}
@@ -85,7 +85,7 @@ func (t *TypeTables) Prototypes() []*manifest.Method {
 	return out
 }
 
-func (t *TypeTables) Enums() []*manifest.Enum {
+func (t *typeTables) sortedEnums() []*manifest.Enum {
 	if len(t.enums) == 0 {
 		return nil
 	}
@@ -97,9 +97,9 @@ func (t *TypeTables) Enums() []*manifest.Enum {
 	return out
 }
 
-// ConvertToManifestMethods converts exported functions into manifest methods,
-// filing every prototype and enum into the returned tables.
-func ConvertToManifestMethods(funcs []ExportedFunction) ([]manifest.Method, *TypeTables) {
+// PopulateManifest describes the exported functions in the manifest, setting
+// its methods along with the prototype and enum tables they refer to.
+func PopulateManifest(m *manifest.Manifest, funcs []ExportedFunction) error {
 	tables := newTypeTables()
 
 	methods := make([]manifest.Method, len(funcs))
@@ -113,10 +113,19 @@ func ConvertToManifestMethods(funcs []ExportedFunction) ([]manifest.Method, *Typ
 		}
 	}
 
-	return methods, tables
+	if err := tables.err(); err != nil {
+		return err
+	}
+
+	sort.Slice(methods, func(i, j int) bool { return methods[i].Name < methods[j].Name })
+
+	m.Methods = methods
+	m.Prototypes = tables.sortedPrototypes()
+	m.Enums = tables.sortedEnums()
+	return nil
 }
 
-func (t *TypeTables) convertParams(params []ParamInfo) []manifest.Property {
+func (t *typeTables) convertParams(params []ParamInfo) []manifest.Property {
 	result := make([]manifest.Property, len(params))
 	for i, p := range params {
 		result[i] = t.convertParamType(p, false)
@@ -124,7 +133,7 @@ func (t *TypeTables) convertParams(params []ParamInfo) []manifest.Property {
 	return result
 }
 
-func (t *TypeTables) convertParamType(p ParamInfo, ignoreRef bool) manifest.Property {
+func (t *typeTables) convertParamType(p ParamInfo, ignoreRef bool) manifest.Property {
 	ty := p.Type
 
 	if ty.IsFunc {
@@ -204,7 +213,7 @@ func (t *TypeTables) convertParamType(p ParamInfo, ignoreRef bool) manifest.Prop
 	}
 }
 
-func (t *TypeTables) convertReturnType(p ParamInfo) manifest.Property {
+func (t *typeTables) convertReturnType(p ParamInfo) manifest.Property {
 	return t.convertParamType(p, true)
 }
 

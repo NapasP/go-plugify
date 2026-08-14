@@ -129,15 +129,11 @@ func writeManifest(
 		Language:     "golang",
 	}
 
-	// Conversion files every prototype and enum into the shared tables and leaves
-	// a reference by name at each use site.
-	methods, tables := generator.ConvertToManifestMethods(exports)
-	if err := tables.Err(); err != nil {
+	// Each prototype and enum is filed into the manifest's shared tables, with a
+	// reference by name left at every use site.
+	if err := generator.PopulateManifest(&man, exports); err != nil {
 		return fmt.Errorf("error building manifest: %w", err)
 	}
-	man.Methods = methods
-	man.Prototypes = tables.Prototypes()
-	man.Enums = tables.Enums()
 
 	// Write JSON
 	data, err := json.MarshalIndent(man, "", "  ")
